@@ -21,8 +21,8 @@ int payout[] = {
 };
 
 
-double eval(int *cards, int n) {
-    if (n == 5) {
+double eval(int *cards, int *starting_hand,std::bitset<5> mask) {
+    if (mask.to_ulong() == 31) {
         int rank = evaluate_5cards(cards[0],cards[1],cards[2],cards[3],cards[4]);
         int category = 10;
         if (rank == 1) {
@@ -46,13 +46,15 @@ double eval(int *cards, int n) {
         }
         return payout[ category ];
     } else {
-        int deck_len = 52-n;
-        int deck[deck_len];
+        int deck_len = 52;
+        int deck[52] = {0};
         int di = 0;
         for (int i = 0; i < 52; ++i) {
             bool skip = false;
-            for (int j = 0; j < n; ++j) {
-                if (i == cards[j]) {skip = true; break;}
+            for (int j = 0; j < 5; ++j) {
+                if (i == cards[j] || i == starting_hand[j]) {
+                    skip = true; deck_len--; break;
+                }
             }
             if (!skip) {
                 deck[di] = i;
@@ -64,12 +66,17 @@ double eval(int *cards, int n) {
         for (int c = 0; c < deck_len; ++c) {
             int pcards[5];
             std::memcpy(pcards, cards, sizeof(int) * 5);
-            pcards[n] = deck[c];
-            if (n == 0) {
-                r += 0.339453 / (deck_len);
-            } else {
-                r += eval(pcards, n+1) / (deck_len);
+            for (int i = 0; i < 5; ++i) {
+                if (!mask.test(i)) {
+                    pcards[i] = deck[c];
+                    std::bitset<5> newMask(mask);
+                    newMask.set(i);
+                    r += eval(pcards, starting_hand, newMask) / (deck_len);
+                    break;
+                }
             }
+
+
         }
         return r;
     }
@@ -128,16 +135,10 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < 32; ++i) {
         int holds[5] = {0};
-        int cc = 0;
+        memcpy(holds, starting_hand, sizeof(int)*5);
         std::bitset<5> bits(i);
-        for (int b = 0; b < 5; ++b) {
-            if (bits.test(b)) {
-                holds[cc] = starting_hand[b];
-                cc++;
-            }
-        }
-        double ev = eval(holds, cc);
-//        std::cout << bits.to_string() << " ev: " << ev << std::endl;
+        double ev = eval(holds, starting_hand, bits);
+        std::cout << bits.to_string() << " ev: " << ev << std::endl;
         if (ev > maxEV) {
             maxEV = ev;
             maxMask = bits;
